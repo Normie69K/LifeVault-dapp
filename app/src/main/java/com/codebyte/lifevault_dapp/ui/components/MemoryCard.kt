@@ -1,3 +1,4 @@
+// src/main/java/com/codebyte/lifevault_dapp/ui/components/MemoryCard.kt
 package com.codebyte.lifevault_dapp.ui.components
 
 import androidx.compose.foundation.background
@@ -13,25 +14,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.codebyte.lifevault_dapp.data.MemoryItem
-import com.codebyte.lifevault_dapp.ui.theme.VaultBlue
-import com.codebyte.lifevault_dapp.ui.theme.VaultPurple
+import com.codebyte.lifevault_dapp.ui.theme.*
 
 @Composable
 fun MemoryCard(memory: MemoryItem, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(90.dp)
+            .height(80.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = BrandCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -39,65 +37,64 @@ fun MemoryCard(memory: MemoryItem, onClick: () -> Unit) {
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Icon Box with Gradient
+            // Icon Box
             Box(
                 modifier = Modifier
-                    .size(50.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(listOf(VaultBlue, VaultPurple))
-                    ),
+                    .background(BrandOrange.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Lock,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = BrandOrange,
                     modifier = Modifier.size(24.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // 2. Text Content
+            // Text Content
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = memory.title,
-                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = TextWhite,
+                    fontSize = 16.sp,
+                    maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = memory.date,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = TextGrey,
+                    fontSize = 12.sp,
+                    maxLines = 1
                 )
             }
 
-            // 3. Status Chip
+            // Status Chip
             if (memory.isSecured) {
                 Surface(
-                    color = Color(0xFFE8F5E9), // Light Green
-                    shape = RoundedCornerShape(12.dp)
+                    color = BrandGreen.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Changed to CheckCircle to avoid missing icon error
                         Icon(
                             Icons.Rounded.CheckCircle,
                             null,
                             modifier = Modifier.size(12.dp),
-                            tint = Color(0xFF2E7D32)
+                            tint = BrandGreen
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             "Aptos",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2E7D32)
+                            color = BrandGreen
                         )
                     }
                 }

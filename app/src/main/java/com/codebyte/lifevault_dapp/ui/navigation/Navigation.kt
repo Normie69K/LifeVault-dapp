@@ -1,3 +1,4 @@
+// src/main/java/com/codebyte/lifevault_dapp/ui/navigation/Navigation.kt
 package com.codebyte.lifevault_dapp.ui.navigation
 
 import androidx.compose.foundation.layout.padding
@@ -13,27 +14,86 @@ import com.codebyte.lifevault_dapp.ui.screens.*
 import com.codebyte.lifevault_dapp.ui.theme.*
 import com.codebyte.lifevault_dapp.ui.components.EnhancedUploadModal
 
-// src/main/java/com/codebyte/lifevault_dapp/ui/navigation/Navigation.kt
-
 @Composable
 fun Navigation(viewModel: MainViewModel) {
     val navController = rememberNavController()
-    var showModal by remember { mutableStateOf(false) } // State for modal
+    var showModal by remember { mutableStateOf(false) }
+    val hasWallet = viewModel.hasWallet()
+
+    // Determine start destination based on wallet status
+    val startDestination = if (hasWallet) "timeline" else "onboarding"
 
     Scaffold(
         containerColor = BrandBlack,
         bottomBar = {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
-            if (navBackStackEntry?.destination?.route != "onboarding") {
-                BottomNavBar(navController) { showModal = true } // Open modal on click
+            val currentRoute = navBackStackEntry?.destination?.route
+
+            // Hide bottom bar on onboarding, unlock, and detail screens
+            val hideBottomBar = currentRoute in listOf(
+                "onboarding",
+                "unlock",
+                "memory_detail/{id}"
+            ) || currentRoute?.startsWith("memory_detail") == true
+
+            if (!hideBottomBar) {
+                BottomNavBar(navController) { showModal = true }
             }
         }
     ) { innerPadding ->
-        NavHost(navController, startDestination = "timeline", Modifier.padding(innerPadding)) {
-            composable("timeline") { TimelineScreen(viewModel, navController) }
-            composable("share") { SharedScreen(viewModel, navController) }
-            composable("profile") { ProfileScreen(viewModel) }
-            composable("send") { SendScreen(viewModel, navController) } // New Send Route
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            // Onboarding
+            composable("onboarding") {
+                OnboardingScreen(viewModel) {
+                    navController.navigate("timeline") {
+                        popUpTo("onboarding") { inclusive = true }
+                    }
+                }
+            }
+
+            // Unlock Screen
+            composable("unlock") {
+                UnlockScreen(viewModel, navController)
+            }
+
+            // Main Screens
+            composable("timeline") {
+                TimelineScreen(viewModel, navController)
+            }
+
+            composable("home") {
+                HomeScreen(viewModel, navController)
+            }
+
+            composable("share") {
+                SharedScreen(viewModel, navController)
+            }
+
+            composable("profile") {
+                ProfileScreen(viewModel, navController)
+            }
+
+            composable("settings") {
+                SettingsScreen(viewModel, navController)
+            }
+
+            composable("wallet") {
+                WalletScreen(viewModel, navController)
+            }
+
+            composable("send") {
+                SendScreen(viewModel, navController)
+            }
+
+            composable("memories") {
+                MemoriesListScreen(viewModel, navController)
+            }
+
+            // Memory Detail
             composable("memory_detail/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id")?.toIntOrNull() ?: 0
                 MemoryDetailScreen(viewModel, id, navController)
@@ -49,17 +109,26 @@ fun Navigation(viewModel: MainViewModel) {
 @Composable
 fun BottomNavBar(navController: NavController, onAddClick: () -> Unit) {
     val items = listOf(
-        Triple("timeline", "Vault", Icons.Rounded.Timeline),
+        Triple("timeline", "Vault", Icons.Rounded.Shield),
+        Triple("share", "Receive", Icons.Rounded.QrCode),
         Triple("add", "Add", Icons.Rounded.AddCircle),
+        Triple("send", "Send", Icons.Rounded.Send),
         Triple("profile", "Profile", Icons.Rounded.Person)
     )
+
     NavigationBar(containerColor = BrandCard) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
 
         items.forEach { (route, label, icon) ->
             NavigationBarItem(
-                icon = { Icon(icon, null) },
+                icon = {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        modifier = if (route == "add") Modifier else Modifier
+                    )
+                },
                 label = { Text(label) },
                 selected = currentRoute == route,
                 onClick = {
@@ -76,7 +145,9 @@ fun BottomNavBar(navController: NavController, onAddClick: () -> Unit) {
                 colors = NavigationBarItemDefaults.colors(
                     indicatorColor = BrandOrange,
                     unselectedIconColor = TextGrey,
-                    selectedIconColor = BrandBlack
+                    selectedIconColor = BrandBlack,
+                    unselectedTextColor = TextGrey,
+                    selectedTextColor = BrandOrange
                 )
             )
         }

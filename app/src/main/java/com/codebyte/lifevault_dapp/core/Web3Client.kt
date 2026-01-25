@@ -1,5 +1,6 @@
 package com.codebyte.lifevault_dapp.core
 
+import android.net.Credentials
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
