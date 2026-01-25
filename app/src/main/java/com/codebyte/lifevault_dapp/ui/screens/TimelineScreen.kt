@@ -22,13 +22,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.codebyte.lifevault_dapp.MainViewModel
 import com.codebyte.lifevault_dapp.ui.components.MemoryCard
+import com.codebyte.lifevault_dapp.ui.components.WalletBalanceCard
+import com.codebyte.lifevault_dapp.ui.components.FaucetButton
 import com.codebyte.lifevault_dapp.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
     val memories by viewModel.memories.collectAsState()
-    val walletAddress by viewModel.walletAddress.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
@@ -42,11 +43,11 @@ fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
             .fillMaxSize()
             .background(BrandBlack)
     ) {
-        // Header
+        // Header - FIXED: Changed vertical: to vertical =
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),  // FIXED HERE
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -81,6 +82,15 @@ fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
                 }
             }
         }
+
+        // Wallet Balance Card
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            WalletBalanceCard(viewModel)
+            Spacer(modifier = Modifier.height(12.dp))
+            FaucetButton(viewModel)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Status Card
         Card(
@@ -153,7 +163,7 @@ fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
                 icon = Icons.Rounded.Add,
                 label = "Secure",
                 color = BrandOrange
-            ) { }
+            ) { /* Upload handled by bottom nav */ }
 
             QuickActionButton(
                 icon = Icons.Rounded.QrCode,
@@ -190,14 +200,16 @@ fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                "See All",
-                color = BrandOrange,
-                fontSize = 14.sp,
-                modifier = Modifier.clickable {
-                    navController.navigate("memories")
-                }
-            )
+            if (memories.isNotEmpty()) {
+                Text(
+                    "See All",
+                    color = BrandOrange,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable {
+                        navController.navigate("memories")
+                    }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

@@ -39,8 +39,8 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                 onQRCodeScanned = { code ->
                     if (viewModel.handleScannedQRCode(code)) {
                         recipientAddress = code
+                        showScanner = false
                     }
-                    showScanner = false
                 },
                 onDismiss = { showScanner = false }
             )
@@ -74,7 +74,7 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    "Transfer ownership of your secured assets",
+                    "Transfer ownership to another wallet",
                     color = TextGrey,
                     fontSize = 14.sp
                 )
@@ -85,7 +85,7 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                     is UiState.Idle, is UiState.Error -> {
                         // Recipient Input
                         Text(
-                            "Recipient Address",
+                            "Recipient Wallet Address",
                             color = TextWhite,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -120,26 +120,35 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                                 unfocusedTextColor = TextWhite
                             ),
                             shape = RoundedCornerShape(16.dp),
-                            singleLine = true
+                            singleLine = false,
+                            maxLines = 3
                         )
 
-                        // Validation hint
+                        // Validation
                         if (recipientAddress.isNotEmpty()) {
-                            val isValid = recipientAddress.startsWith("0x") &&
-                                    recipientAddress.length == 66
-                            Text(
-                                if (isValid) "✓ Valid Aptos address" else "Invalid address format",
-                                color = if (isValid) BrandGreen else BrandRed,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+                            val isValid = recipientAddress.startsWith("0x") && recipientAddress.length == 66
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (isValid) Icons.Rounded.CheckCircle else Icons.Rounded.Error,
+                                    null,
+                                    tint = if (isValid) BrandGreen else BrandRed,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    if (isValid) "Valid Aptos address" else "Invalid address format (must be 66 chars)",
+                                    color = if (isValid) BrandGreen else BrandRed,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Note Input
+                        // Note
                         Text(
-                            "Note (Optional)",
+                            "Transfer Note (Optional)",
                             color = TextWhite,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -149,7 +158,7 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                             value = assetNote,
                             onValueChange = { assetNote = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Add a note for this transfer", color = TextGrey) },
+                            placeholder = { Text("e.g., Family photos, Documents", color = TextGrey) },
                             leadingIcon = {
                                 Icon(Icons.Rounded.Notes, null, tint = TextGrey)
                             },
@@ -162,16 +171,14 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                                 unfocusedTextColor = TextWhite
                             ),
                             shape = RoundedCornerShape(16.dp),
-                            singleLine = true
+                            maxLines = 3
                         )
 
-                        // Error message
+                        // Error Display
                         if (uiState is UiState.Error || errorMessage != null) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = BrandRed.copy(0.2f)
-                                ),
+                                colors = CardDefaults.cardColors(containerColor = BrandRed.copy(0.2f)),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Row(
@@ -181,8 +188,7 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                                     Icon(Icons.Rounded.Error, null, tint = BrandRed)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        (uiState as? UiState.Error)?.message
-                                            ?: errorMessage ?: "An error occurred",
+                                        (uiState as? UiState.Error)?.message ?: errorMessage ?: "",
                                         color = BrandRed,
                                         fontSize = 14.sp
                                     )
@@ -192,9 +198,29 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
 
                         Spacer(modifier = Modifier.weight(1f))
 
+                        // Info Card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = BrandCard),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Info, null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    "This transfer will be recorded on Aptos blockchain",
+                                    color = TextGrey,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         // Send Button
-                        val isValidAddress = recipientAddress.startsWith("0x") &&
-                                recipientAddress.length == 66
+                        val isValidAddress = recipientAddress.startsWith("0x") && recipientAddress.length == 66
 
                         Button(
                             onClick = { viewModel.sendToAddress(recipientAddress, assetNote) },
@@ -265,18 +291,30 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                                     fontSize = 24.sp,
                                     fontWeight = FontWeight.Bold
                                 )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Sent to:",
+                                    color = TextGrey,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    "${recipientAddress.take(10)}...${recipientAddress.takeLast(8)}",
+                                    color = BrandOrange,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Transaction Hash:", color = TextGrey)
+                                Text("Transaction Hash:", color = TextGrey, fontSize = 12.sp)
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = BrandCard),
                                     shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.padding(top = 8.dp)
+                                    modifier = Modifier.padding(top = 4.dp)
                                 ) {
                                     Text(
-                                        (uiState as UiState.Success).txHash.take(24) + "...",
+                                        (uiState as UiState.Success).txHash.take(20) + "...",
                                         modifier = Modifier.padding(12.dp),
                                         color = BrandOrange,
-                                        fontSize = 12.sp
+                                        fontSize = 11.sp
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(32.dp))
@@ -285,10 +323,10 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                                         viewModel.resetStates()
                                         navController.popBackStack()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandCard),
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text("Done", color = TextWhite)
+                                    Text("Done", color = BrandBlack, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.codebyte.lifevault_dapp.MainViewModel
 import com.codebyte.lifevault_dapp.ui.components.MemoryCard
+import com.codebyte.lifevault_dapp.ui.components.WalletBalanceCard
+import com.codebyte.lifevault_dapp.ui.components.FaucetButton
 import com.codebyte.lifevault_dapp.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,6 +99,7 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (isEditing) {
+                    // Edit Mode
                     OutlinedTextField(
                         value = editedName,
                         onValueChange = { editedName = it },
@@ -106,7 +109,9 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
                             focusedBorderColor = BrandOrange,
                             unfocusedBorderColor = TextGrey,
                             focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite
+                            unfocusedTextColor = TextWhite,
+                            focusedLabelColor = BrandOrange,
+                            unfocusedLabelColor = TextGrey
                         )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -119,7 +124,9 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
                             focusedBorderColor = BrandOrange,
                             unfocusedBorderColor = TextGrey,
                             focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite
+                            unfocusedTextColor = TextWhite,
+                            focusedLabelColor = BrandOrange,
+                            unfocusedLabelColor = TextGrey
                         )
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -150,6 +157,7 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
                         }
                     }
                 } else {
+                    // Display Mode
                     Text(
                         userName,
                         fontSize = 24.sp,
@@ -168,14 +176,25 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
                         color = BrandBlack,
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
-                            text = walletAddress?.let {
-                                "${it.take(8)}...${it.takeLast(6)}"
-                            } ?: "No Wallet",
+                        Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            color = BrandOrange,
-                            fontSize = 12.sp
-                        )
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Rounded.AccountBalanceWallet,
+                                null,
+                                tint = BrandOrange,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = walletAddress?.let {
+                                    "${it.take(8)}...${it.takeLast(6)}"
+                                } ?: "No Wallet",
+                                color = BrandOrange,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -197,6 +216,15 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Wallet Balance Section
+        WalletBalanceCard(viewModel)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        FaucetButton(viewModel)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // Stats Row
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -210,12 +238,23 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
         Spacer(modifier = Modifier.height(24.dp))
 
         // Recent Activity
-        Text(
-            "Recent Activity",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextWhite
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Recent Activity",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextWhite
+            )
+            if (memories.isNotEmpty()) {
+                TextButton(onClick = { navController.navigate("memories") }) {
+                    Text("View All", color = BrandOrange)
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 

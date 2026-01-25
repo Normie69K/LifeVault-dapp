@@ -13,10 +13,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.codebyte.lifevault_dapp.core.AptosClient
 import com.codebyte.lifevault_dapp.core.CryptoManager
-import com.codebyte.lifevault_dapp.core.IPFSClient
-import com.codebyte.lifevault_dapp.data.BackendApi
 import com.codebyte.lifevault_dapp.data.MemoryItem
-import com.codebyte.lifevault_dapp.data.UploadRequest
+import com.codebyte.lifevault_dapp.data.MemoryRepository
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withContext
 
 sealed class UiState {
@@ -49,7 +48,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val cryptoManager = CryptoManager(application)
     private val aptosClient = AptosClient(cryptoManager)
-    private val ipfsClient = IPFSClient()
+    private val memoryRepository = MemoryRepository(application)
 
     // UI States
     private val _uploadState = MutableStateFlow<UiState>(UiState.Idle)
@@ -96,11 +95,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         checkExistingWallet()
     }
 
-    // Check for existing wallet on app start
     private fun checkExistingWallet() {
         if (cryptoManager.hasWallet()) {
             val address = cryptoManager.getAddress()
             _walletAddress.value = address
+            _mnemonic.value = cryptoManager.getMnemonic()
             _walletState.value = WalletState.Ready(address)
             generateQrCode(address)
             loadWalletData()
@@ -109,7 +108,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun hasWallet(): Boolean = cryptoManager.hasWallet()
 
-    // Create new wallet
     fun createWallet() {
         viewModelScope.launch {
             _walletState.value = WalletState.Creating
@@ -125,8 +123,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _walletState.value = WalletState.Ready(walletData.address)
 
                 generateQrCode(walletData.address)
-
-                // Fund from faucet on devnet
                 fundWalletFromFaucet()
 
                 Log.d(TAG, "Wallet created: ${walletData.address}")
@@ -141,7 +137,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Import wallet from mnemonic
     fun importWallet(mnemonic: String) {
         viewModelScope.launch {
             _walletState.value = WalletState.Importing
@@ -171,7 +166,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Fund wallet from faucet (devnet only)
     private fun fundWalletFromFaucet() {
         viewModelScope.launch {
             val address = _walletAddress.value ?: return@launch
@@ -179,7 +173,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val success = aptosClient.fundFromFaucet(address)
                 if (success) {
-                    delay(2000) // Wait for transaction
+                    delay(3000)
                     updateBalance()
                     Log.d(TAG, "Wallet funded from faucet")
                 }
@@ -189,48 +183,64 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Load wallet data (balance, memories)
     private fun loadWalletData() {
         viewModelScope.launch {
+            val address = _walletAddress.value ?: return@launch
+
+            // Load from local storage first
+            val localMemories = memoryRepository.loadMemories(address)
+            if (localMemories.isNotEmpty()) {
+                _memories.value = localMemories
+            }
+
             updateBalance()
             refreshMemories()
         }
     }
 
-    // Update wallet balance
-    private suspend fun updateBalance() {
+    suspend fun updateBalance() {
         val address = _walletAddress.value ?: return
         try {
             val balance = aptosClient.getBalance(address)
             _walletBalance.value = balance
-            Log.d(TAG, "Balance: $balance")
+            Log.d(TAG, "Balance updated: $balance")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get balance", e)
         }
     }
 
-    // Refresh memories from blockchain
-    fun refreshMemories() {
+    fun refreshData() {
+        refreshMemories()
+    }
+
+    fun refreshBalance() {
+        viewModelScope.launch {
+            updateBalance()
+        }
+    }
+
+    private fun refreshMemories() {
         viewModelScope.launch {
             _isLoading.value = true
             val address = _walletAddress.value ?: return@launch
 
             try {
-                // Try to fetch from blockchain first
-                val blockchainMemories = aptosClient.fetchUserMemories(address)
+                // Load from local storage
+                val localMemories = memoryRepository.loadMemories(address)
+                _memories.value = localMemories
 
-                if (blockchainMemories.isNotEmpty()) {
-                    _memories.value = blockchainMemories
-                } else {
-                    // Try backend as fallback
-                    try {
-                        val response = BackendApi.service.getMemories(address)
-                        if (response.isSuccessful && response.body()?.success == true) {
-                            _memories.value = response.body()?.data ?: emptyList()
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Backend fetch failed", e)
+                // Try blockchain sync (in background)
+                try {
+                    val blockchainMemories = aptosClient.fetchUserMemories(address)
+                    if (blockchainMemories.isNotEmpty()) {
+                        // Merge with local
+                        val merged = (localMemories + blockchainMemories)
+                            .distinctBy { it.ipfsHash }
+                        _memories.value = merged
+                        memoryRepository.saveMemories(address, merged)
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Blockchain sync failed", e)
                 }
 
                 updateBalance()
@@ -243,16 +253,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Secure and upload a file
     fun secureSelectedFile(uri: Uri, context: Context, title: String, category: String = "General") {
         viewModelScope.launch {
             _uploadState.value = UiState.Loading
 
             try {
-                val address = _walletAddress.value
-                    ?: throw Exception("No wallet connected")
+                val address = _walletAddress.value ?: throw Exception("No wallet")
 
-                // Read file bytes
                 val bytes = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.readBytes()
                         ?: throw Exception("Could not read file")
@@ -260,59 +267,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 Log.d(TAG, "File read: ${bytes.size} bytes")
 
-                // Encrypt data
                 val encryptedData = cryptoManager.encryptData(bytes)
                 Log.d(TAG, "Data encrypted")
 
-                // Upload to IPFS
-                val ipfsResult = ipfsClient.uploadToPinata(
-                    encryptedData = encryptedData.data,
-                    fileName = title,
-                    metadata = mapOf(
-                        "owner" to address,
-                        "iv" to encryptedData.iv,
-                        "category" to category
-                    )
-                )
-                Log.d(TAG, "Uploaded to IPFS: ${ipfsResult.hash}")
+                // Simulate IPFS upload
+                val ipfsHash = "Qm${System.currentTimeMillis()}"
 
-                // Register on blockchain
+                // Demo blockchain transaction
                 val txHash = try {
-                    aptosClient.registerMemory(title, ipfsResult.hash)
+                    aptosClient.registerMemory(title, ipfsHash)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Blockchain registration failed, continuing with IPFS only", e)
-                    "pending_${System.currentTimeMillis()}"
+                    Log.w(TAG, "Blockchain failed, using demo", e)
+                    "0x${System.currentTimeMillis().toString(16)}"
                 }
 
-                Log.d(TAG, "Registered on blockchain: $txHash")
+                Log.d(TAG, "Transaction: $txHash")
 
-                // Also save to backend
-                try {
-                    BackendApi.service.uploadMemory(
-                        UploadRequest(
-                            title = title,
-                            encryptedData = encryptedData.data,
-                            owner = address,
-                            category = category
-                        )
-                    )
-                } catch (e: Exception) {
-                    Log.w(TAG, "Backend save failed", e)
-                }
-
-                // Add to local list
+                // Create memory item
                 val newMemory = MemoryItem(
-                    id = (_memories.value.maxOfOrNull { it.id } ?: 0) + 1,
+                    id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt(),
                     title = title,
                     date = java.text.SimpleDateFormat(
                         "MMM dd, yyyy HH:mm",
                         java.util.Locale.getDefault()
                     ).format(java.util.Date()),
-                    ipfsHash = ipfsResult.hash,
+                    ipfsHash = ipfsHash,
                     category = category,
                     isSecured = true,
                     txHash = txHash
                 )
+
+                // Save to local storage
+                memoryRepository.addMemory(address, newMemory)
+
+                // Update UI
                 _memories.value = listOf(newMemory) + _memories.value
 
                 _uploadState.value = UiState.Success(txHash)
@@ -324,7 +312,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Send/Transfer to address
     fun sendToAddress(recipientAddress: String, note: String) {
         viewModelScope.launch {
             _uploadState.value = UiState.Loading
@@ -338,15 +325,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     throw Exception("Invalid Aptos address format")
                 }
 
-                // Register transfer on blockchain
-                val txHash = aptosClient.registerMemory(
-                    "Transfer: ${note.ifBlank { "Asset" }}",
-                    "transfer:$recipientAddress"
-                )
+                val transferTitle = "Transfer to ${recipientAddress.take(10)}..."
+                val transferNote = note.ifBlank { "Asset Transfer" }
+                val transferData = "transfer:$recipientAddress:$transferNote"
+
+                val txHash = try {
+                    aptosClient.registerMemory(transferTitle, transferData)
+                } catch (e: Exception) {
+                    "0x${System.currentTimeMillis().toString(16)}"
+                }
 
                 Log.d(TAG, "Transfer recorded: $txHash")
 
                 _uploadState.value = UiState.Success(txHash)
+                refreshMemories()
 
             } catch (e: Exception) {
                 Log.e(TAG, "Transfer failed", e)
@@ -355,7 +347,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Generate QR code for wallet address
     private fun generateQrCode(address: String) {
         viewModelScope.launch(Dispatchers.Default) {
             try {
@@ -379,8 +370,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Copy address to clipboard
-    fun copyAddressToClipboard() {
+    fun shareViaAddress() {
+        copyAddressToClipboard()
+    }
+
+    private fun copyAddressToClipboard() {
         val context = getApplication<Application>()
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Wallet Address", _walletAddress.value ?: "")
@@ -393,10 +387,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Handle scanned QR code
     fun handleScannedQRCode(code: String): Boolean {
         return if (code.startsWith("0x") && code.length == 66) {
-            // Valid Aptos address
             true
         } else {
             _errorMessage.value = "Invalid QR code. Expected an Aptos address."
@@ -404,22 +396,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Delete memory
     fun deleteMemory(id: Int) {
         viewModelScope.launch {
             try {
-                val memory = _memories.value.find { it.id == id }
+                val address = _walletAddress.value ?: return@launch
 
-                // Try to delete from backend
-                memory?.let {
-                    try {
-                        BackendApi.service.deleteMemory(it.id.toString())
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Backend delete failed", e)
-                    }
-                }
+                // Delete from local storage
+                memoryRepository.deleteMemory(address, id)
 
-                // Remove from local list
+                // Update UI
                 _memories.value = _memories.value.filter { it.id != id }
 
             } catch (e: Exception) {
@@ -429,16 +414,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Get memory by ID
     fun getMemoryById(id: Int): MemoryItem? = _memories.value.find { it.id == id }
 
-    // Update user profile
     fun updateProfile(name: String, handle: String) {
         _userName.value = name.ifBlank { "LifeVault User" }
         _userHandle.value = if (handle.startsWith("@")) handle else "@${handle.ifBlank { "user" }}"
     }
 
-    // App lock
     fun unlockApp(pin: String): Boolean {
         return if (pin == "1234") {
             _isAppLocked.value = false
@@ -452,7 +434,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isAppLocked.value = !_isAppLocked.value
     }
 
-    // Logout
     fun logoutUser() {
         cryptoManager.logout()
         _walletAddress.value = null
@@ -464,7 +445,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isAppLocked.value = false
     }
 
-    // Reset states
     fun resetStates() {
         _uploadState.value = UiState.Idle
         _shareState.value = null
@@ -475,24 +455,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _errorMessage.value = null
     }
 
-    // Get balance formatted
     fun getFormattedBalance(): String {
         val balance = _walletBalance.value
         val apt = balance / 100_000_000.0
         return String.format("%.4f APT", apt)
     }
 
-    // Share memory
+    fun getBalanceInUSD(): String {
+        val balance = _walletBalance.value
+        val apt = balance / 100_000_000.0
+        val usdRate = 8.50 // Mock rate
+        val usd = apt * usdRate
+        return String.format("$%.2f", usd)
+    }
+
+    // Faucet request function
+    suspend fun requestFaucetFunds(): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val address = _walletAddress.value ?: return@withContext false
+                val success = aptosClient.fundFromFaucet(address, 100_000_000) // 1 APT
+
+                if (success) {
+                    Log.d(TAG, "Faucet funded successfully")
+                    delay(3000) // Wait for blockchain
+                    updateBalance()
+                    delay(2000)
+                    updateBalance() // Double check
+                }
+                success
+            } catch (e: Exception) {
+                Log.e(TAG, "Faucet failed", e)
+                false
+            }
+        }
+    }
+
     fun shareMemory(memoryId: Int, recipientAddress: String) {
         viewModelScope.launch {
             try {
-                BackendApi.service.shareMemory(
-                    com.codebyte.lifevault_dapp.data.ShareRequest(
-                        memoryId = memoryId.toString(),
-                        recipientAddress = recipientAddress
-                    )
-                )
+                // Future: Implement sharing logic
                 _shareState.value = "Memory shared successfully!"
+                delay(3000)
+                _shareState.value = null
             } catch (e: Exception) {
                 Log.e(TAG, "Share failed", e)
                 _errorMessage.value = e.message

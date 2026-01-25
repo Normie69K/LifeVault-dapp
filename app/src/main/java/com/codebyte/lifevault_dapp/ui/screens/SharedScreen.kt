@@ -22,6 +22,7 @@ import androidx.navigation.NavController
 import com.codebyte.lifevault_dapp.MainViewModel
 import com.codebyte.lifevault_dapp.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
     val address by viewModel.walletAddress.collectAsState()
@@ -35,17 +36,30 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            "Receive Assets",
-            color = TextWhite,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Rounded.ArrowBack, null, tint = TextWhite)
+            }
+            Text(
+                "Receive Assets",
+                color = TextWhite,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = { /* Share QR */ }) {
+                Icon(Icons.Rounded.Share, null, tint = BrandOrange)
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            "Share your address to receive secured assets",
+            "Share this QR code or address to receive secured assets",
             color = TextGrey,
             fontSize = 14.sp,
             textAlign = TextAlign.Center
@@ -57,7 +71,8 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
         Card(
             modifier = Modifier.size(280.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = TextWhite)
+            colors = CardDefaults.cardColors(containerColor = TextWhite),
+            elevation = CardDefaults.cardElevation(8.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -71,16 +86,7 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
                         contentDescription = "Wallet QR",
                         modifier = Modifier.fillMaxSize()
                     )
-                } ?: Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(color = BrandOrange)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Generating QR...",
-                        color = BrandBlack.copy(0.5f)
-                    )
-                }
+                } ?: CircularProgressIndicator(color = BrandOrange)
             }
         }
 
@@ -116,7 +122,7 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Action Buttons
+        // Copy Address Button
         Button(
             onClick = { viewModel.shareViaAddress() },
             modifier = Modifier
@@ -125,11 +131,7 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
             colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Icon(
-                Icons.Rounded.ContentCopy,
-                null,
-                tint = BrandBlack
-            )
+            Icon(Icons.Rounded.ContentCopy, null, tint = BrandBlack)
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 "Copy Address",
@@ -141,8 +143,9 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Share Button
         OutlinedButton(
-            onClick = { /* Share functionality */ },
+            onClick = { /* TODO: Native share */ },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -156,11 +159,7 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
         ) {
             Icon(Icons.Rounded.Share, null)
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                "Share",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+            Text("Share QR Code", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
         // Success Message
@@ -176,18 +175,28 @@ fun SharedScreen(viewModel: MainViewModel, navController: NavController) {
                     modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Rounded.CheckCircle,
-                        null,
-                        tint = BrandGreen
-                    )
+                    Icon(Icons.Rounded.CheckCircle, null, tint = BrandGreen)
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        message,
-                        color = BrandGreen,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(message, color = BrandGreen, fontWeight = FontWeight.Medium)
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Instructions
+        Card(
+            colors = CardDefaults.cardColors(containerColor = BrandCard.copy(0.5f)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(modifier = Modifier.padding(16.dp)) {
+                Icon(Icons.Rounded.Info, null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    "Anyone with this address can send you secured assets on the Aptos blockchain.",
+                    color = TextGrey,
+                    fontSize = 12.sp
+                )
             }
         }
     }

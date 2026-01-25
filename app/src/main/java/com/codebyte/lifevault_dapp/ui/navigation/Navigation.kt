@@ -20,7 +20,6 @@ fun Navigation(viewModel: MainViewModel) {
     var showModal by remember { mutableStateOf(false) }
     val hasWallet = viewModel.hasWallet()
 
-    // Determine start destination based on wallet status
     val startDestination = if (hasWallet) "timeline" else "onboarding"
 
     Scaffold(
@@ -29,11 +28,11 @@ fun Navigation(viewModel: MainViewModel) {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
 
-            // Hide bottom bar on onboarding, unlock, and detail screens
             val hideBottomBar = currentRoute in listOf(
                 "onboarding",
                 "unlock",
-                "memory_detail/{id}"
+                "wallet_management",
+                "settings"
             ) || currentRoute?.startsWith("memory_detail") == true
 
             if (!hideBottomBar) {
@@ -46,7 +45,7 @@ fun Navigation(viewModel: MainViewModel) {
             startDestination = startDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // Onboarding
+            // Auth
             composable("onboarding") {
                 OnboardingScreen(viewModel) {
                     navController.navigate("timeline") {
@@ -55,7 +54,6 @@ fun Navigation(viewModel: MainViewModel) {
                 }
             }
 
-            // Unlock Screen
             composable("unlock") {
                 UnlockScreen(viewModel, navController)
             }
@@ -81,8 +79,9 @@ fun Navigation(viewModel: MainViewModel) {
                 SettingsScreen(viewModel, navController)
             }
 
-            composable("wallet") {
-                WalletScreen(viewModel, navController)
+            // ✅ ADD THIS MISSING ROUTE
+            composable("wallet_management") {
+                WalletManagementScreen(viewModel, navController)
             }
 
             composable("send") {
@@ -93,7 +92,6 @@ fun Navigation(viewModel: MainViewModel) {
                 MemoriesListScreen(viewModel, navController)
             }
 
-            // Memory Detail
             composable("memory_detail/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id")?.toIntOrNull() ?: 0
                 MemoryDetailScreen(viewModel, id, navController)
@@ -122,13 +120,7 @@ fun BottomNavBar(navController: NavController, onAddClick: () -> Unit) {
 
         items.forEach { (route, label, icon) ->
             NavigationBarItem(
-                icon = {
-                    Icon(
-                        icon,
-                        contentDescription = label,
-                        modifier = if (route == "add") Modifier else Modifier
-                    )
-                },
+                icon = { Icon(icon, contentDescription = label) },
                 label = { Text(label) },
                 selected = currentRoute == route,
                 onClick = {

@@ -29,7 +29,7 @@ data class UploadRequest(
 data class UploadResponse(
     val memoryId: String,
     val ipfsHash: String,
-    val txHash: String
+    val txHash: String = ""
 )
 
 data class UserProfile(

@@ -16,18 +16,16 @@ class IPFSClient {
 
     companion object {
         private const val TAG = "IPFSClient"
-
-        // Pinata API (Free tier available)
         private const val PINATA_API_URL = "https://api.pinata.cloud"
 
-        // Replace with your Pinata API keys
-        private const val PINATA_API_KEY = "cff9b41913c8991e63bb"
-        private const val PINATA_SECRET_KEY = "8620c8fcbb4c9b4a2e034fac3d8ecfb9016a0440f75d6f58ccd0e4884e81630b\n" +
-                "PINATA_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI5MWJmMTM5OS00NDc5LTQyZmMtYmU2Yy0xZDFiN2E3YWE5NjEiLCJlbWFpbCI6ImFkaXR5YW5pc2hhZDMwMDVAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImNmZjliNDE5MTNjODk5MWU2M2JiIiwic2NvcGVkS2V5U2VjcmV0IjoiODYyMGM4ZmNiYjRjOWI0YTJlMDM0ZmFjM2Q4ZWNmYjkwMTZhMDQ0MGY3NWQ2ZjU4Y2NkMGU0ODg0ZTgxNjMwYiIsImV4cCI6MTgwMDg3NjQ0NX0.r9CH_aIhsBhcBpVBVViItPyuz2zP43rCx2WOJzgOVWI"
+        // 1. Cleaned up API Key
+        private const val PINATA_API_KEY = "92ce2780d1f3d7c245e7"
 
-        // Alternative: Use Web3.Storage or NFT.Storage (also free)
-        private const val WEB3_STORAGE_URL = "https://api.web3.storage"
-        private const val WEB3_STORAGE_TOKEN = "YOUR_WEB3_STORAGE_TOKEN"
+        // 2. Cleaned up Secret Key (Removed the \n and the JWT part)
+        private const val PINATA_SECRET_KEY = "859ec47bf1e4103ab4eaf2fe33db111e8f4821fe2b98a3859a06548d02541ac2"
+
+        // 3. If you want to use the JWT instead (recommended by Pinata), keep it separate
+        private const val PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     }
 
     private val httpClient = OkHttpClient.Builder()

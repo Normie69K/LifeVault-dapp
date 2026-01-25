@@ -100,6 +100,7 @@ dependencies {
 
     // QR Code Generation
     implementation("com.google.zxing:core:3.5.2")
+    implementation(libs.firebase.crashlytics.buildtools)
 
     // CameraX for QR Scanning
     val cameraxVersion = "1.3.1"

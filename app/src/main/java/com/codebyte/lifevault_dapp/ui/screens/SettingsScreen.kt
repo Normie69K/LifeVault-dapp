@@ -12,7 +12,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,109 +53,153 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Premium Banner
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = BrandCard)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            listOf(BrandOrange.copy(0.3f), BrandCard)
-                        )
-                    )
-                    .padding(20.dp)
+        // Wallet & Security Section
+        Text(
+            "Wallet & Security",
+            color = TextGrey,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        SettingsGroup {
+            SettingsItem(
+                "Manage Wallets",
+                Icons.Rounded.AccountBalanceWallet,
+                "Backup, import, or create new wallets"
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            "Premium",
-                            color = BrandOrange,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Upgrade your experience\nwith Premium features!",
-                            color = TextWhite,
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp
-                        )
-                    }
-                    Icon(
-                        Icons.Rounded.Star,
-                        null,
-                        tint = BrandOrange,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
+                navController.navigate("wallet_management")
+            }
+
+            Divider(color = BrandBlack, thickness = 1.dp)
+
+            SettingsItemWithToggle(
+                "App Lock",
+                Icons.Rounded.Lock,
+                "Require PIN to open app",
+                isEnabled = isLocked,
+                onToggle = { viewModel.toggleAppLock() }
+            )
+
+            Divider(color = BrandBlack, thickness = 1.dp)
+
+            SettingsItem(
+                "Backup & Recovery",
+                Icons.Rounded.Backup,
+                "View recovery phrase"
+            ) {
+                navController.navigate("wallet_management")
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Settings Groups
+        // App Settings Section
+        Text(
+            "App Settings",
+            color = TextGrey,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
         SettingsGroup {
             SettingsItem(
-                "Manage Wallets",
-                Icons.Rounded.AccountBalanceWallet
+                "Notifications",
+                Icons.Rounded.Notifications,
+                "Manage notification preferences"
             ) {
-                navController.navigate("wallet")
+                // TODO: Notifications screen
             }
 
-            SettingsItemWithToggle(
-                "App Lock",
-                Icons.Rounded.Lock,
-                isEnabled = isLocked,
-                onToggle = { viewModel.toggleAppLock() }
-            )
+            Divider(color = BrandBlack, thickness = 1.dp)
 
             SettingsItem(
-                "Backup & Recovery",
-                Icons.Rounded.Backup
+                "Network",
+                Icons.Rounded.Public,
+                "Currently: Aptos Devnet"
             ) {
-                // TODO: Implement backup screen
+                // TODO: Network selector
+            }
+
+            Divider(color = BrandBlack, thickness = 1.dp)
+
+            SettingsItem(
+                "Language",
+                Icons.Rounded.Language,
+                "English (US)"
+            ) {
+                // TODO: Language selector
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Information Section
+        Text(
+            "Information",
+            color = TextGrey,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
 
         SettingsGroup {
             SettingsItem(
                 "About LifeVault",
-                Icons.Rounded.Info
+                Icons.Rounded.Info,
+                "Version 1.0.0 (Hackathon Edition)"
             ) {
                 // TODO: About screen
             }
 
+            Divider(color = BrandBlack, thickness = 1.dp)
+
             SettingsItem(
                 "Help & Support",
-                Icons.Rounded.Help
+                Icons.Rounded.Help,
+                "Get help with the app"
             ) {
                 // TODO: Help screen
             }
 
+            Divider(color = BrandBlack, thickness = 1.dp)
+
             SettingsItem(
                 "Privacy Policy",
-                Icons.Rounded.Policy
+                Icons.Rounded.Policy,
+                "Read our privacy policy"
             ) {
                 // TODO: Privacy screen
             }
+
+            Divider(color = BrandBlack, thickness = 1.dp)
+
+            SettingsItem(
+                "Terms of Service",
+                Icons.Rounded.Description,
+                "Read terms and conditions"
+            ) {
+                // TODO: Terms screen
+            }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Danger Zone
+        Text(
+            "Danger Zone",
+            color = BrandRed,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
 
         SettingsGroup {
             SettingsItem(
-                "Logout / Reset Vault",
+                "Logout",
                 Icons.Rounded.Logout,
+                "Sign out from this wallet",
                 isError = true
             ) {
                 showLogoutDialog = true
@@ -166,24 +209,61 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
         Spacer(modifier = Modifier.weight(1f))
 
         // Version Info
-        Text(
-            "LifeVault v1.0.0 (Hackathon Edition)",
-            color = TextGrey,
-            fontSize = 12.sp,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "LifeVault",
+                color = TextGrey,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Powered by Aptos Blockchain",
+                color = TextGrey.copy(0.6f),
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Version 1.0.0 (Build 2026)",
+                color = TextGrey.copy(0.4f),
+                fontSize = 10.sp
+            )
+        }
     }
 
     // Logout Dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Logout", color = TextWhite) },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Warning, null, tint = BrandRed, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Logout Warning", color = TextWhite)
+                }
+            },
             text = {
-                Text(
-                    "Are you sure you want to logout? Make sure you have backed up your recovery phrase.",
-                    color = TextGrey
-                )
+                Column {
+                    Text(
+                        "Are you sure you want to logout?",
+                        color = TextWhite,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "⚠️ Make sure you have backed up your 12-word recovery phrase!",
+                        color = BrandRed,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Without it, you will permanently lose access to your wallet and all secured assets.",
+                        color = TextGrey,
+                        fontSize = 13.sp
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -196,7 +276,7 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandRed)
                 ) {
-                    Text("Logout")
+                    Text("Logout Anyway")
                 }
             },
             dismissButton = {
@@ -213,6 +293,7 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
 fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(BrandCard)
     ) {
@@ -224,6 +305,7 @@ fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
 fun SettingsItem(
     text: String,
     icon: ImageVector,
+    subtitle: String = "",
     isError: Boolean = false,
     onClick: () -> Unit = {}
 ) {
@@ -237,20 +319,30 @@ fun SettingsItem(
         Icon(
             icon,
             null,
-            tint = if (isError) BrandRed else TextGrey,
+            tint = if (isError) BrandRed else BrandOrange,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text,
-            color = if (isError) BrandRed else TextWhite,
-            fontSize = 16.sp,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text,
+                color = if (isError) BrandRed else TextWhite,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    subtitle,
+                    color = TextGrey,
+                    fontSize = 12.sp
+                )
+            }
+        }
         Icon(
             Icons.Rounded.ChevronRight,
             null,
-            tint = TextGrey
+            tint = TextGrey,
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -259,6 +351,7 @@ fun SettingsItem(
 fun SettingsItemWithToggle(
     text: String,
     icon: ImageVector,
+    subtitle: String = "",
     isEnabled: Boolean,
     onToggle: () -> Unit
 ) {
@@ -271,16 +364,25 @@ fun SettingsItemWithToggle(
         Icon(
             icon,
             null,
-            tint = TextGrey,
+            tint = BrandOrange,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text,
-            color = TextWhite,
-            fontSize = 16.sp,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text,
+                color = TextWhite,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    subtitle,
+                    color = TextGrey,
+                    fontSize = 12.sp
+                )
+            }
+        }
         Switch(
             checked = isEnabled,
             onCheckedChange = { onToggle() },
