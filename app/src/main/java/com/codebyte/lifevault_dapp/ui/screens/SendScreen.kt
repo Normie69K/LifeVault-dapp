@@ -2,8 +2,13 @@
 package com.codebyte.lifevault_dapp.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -16,21 +21,73 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.codebyte.lifevault_dapp.MainViewModel
 import com.codebyte.lifevault_dapp.UiState
+import com.codebyte.lifevault_dapp.data.MemoryItem
 import com.codebyte.lifevault_dapp.ui.components.QRScannerScreen
 import com.codebyte.lifevault_dapp.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SendScreen(viewModel: MainViewModel, navController: NavController) {
+    // Collect Shared Address
+    val incomingAddress by viewModel.incomingSharedAddress.collectAsState()
+
     var recipientAddress by remember { mutableStateOf("") }
     var assetNote by remember { mutableStateOf("") }
     var showScanner by remember { mutableStateOf(false) }
+    var expirationDuration by remember { mutableStateOf("Never") }
 
+    var showAssetPicker by remember { mutableStateOf(false) }
+    var selectedAsset by remember { mutableStateOf<MemoryItem?>(null) }
+
+    val memories by viewModel.memories.collectAsState()
     val uiState by viewModel.uploadState.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val scrollState = rememberScrollState()
+
+    // PRE-FILL logic: If coming from a share, fill and consume
+    LaunchedEffect(incomingAddress) {
+        incomingAddress?.let {
+            recipientAddress = it
+            viewModel.consumeIncomingAddress()
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose { viewModel.resetStates() }
+    }
+
+    if (showAssetPicker) {
+        AlertDialog(
+            onDismissRequest = { showAssetPicker = false },
+            title = { Text("Select File to Send", color = TextWhite) },
+            text = {
+                Box(modifier = Modifier.height(300.dp)) {
+                    LazyColumn {
+                        items(memories) { memory ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedAsset = memory
+                                        showAssetPicker = false
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Description, null, tint = BrandOrange)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(memory.title, color = TextWhite)
+                            }
+                            Divider(color = BrandCard)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAssetPicker = false }) { Text("Cancel", color = TextGrey) }
+            },
+            containerColor = BrandBlack
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -50,8 +107,8 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                     .fillMaxSize()
                     .background(BrandBlack)
                     .padding(24.dp)
+                    .verticalScroll(scrollState)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -60,275 +117,140 @@ fun SendScreen(viewModel: MainViewModel, navController: NavController) {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Rounded.ArrowBack, null, tint = TextWhite)
                     }
-                    Text(
-                        "Send Asset",
-                        color = TextWhite,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Send File", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     IconButton(onClick = { showScanner = true }) {
                         Icon(Icons.Rounded.QrCodeScanner, null, tint = BrandOrange)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    "Transfer ownership to another wallet",
-                    color = TextGrey,
-                    fontSize = 14.sp
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 when (uiState) {
                     is UiState.Idle, is UiState.Error -> {
-                        // Recipient Input
-                        Text(
-                            "Recipient Wallet Address",
-                            color = TextWhite,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-
+                        Text("Recipient Wallet Address", color = TextWhite, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = recipientAddress,
                             onValueChange = { recipientAddress = it },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("0x...", color = TextGrey) },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Person, null, tint = TextGrey)
-                            },
-                            trailingIcon = {
-                                Row {
-                                    if (recipientAddress.isNotEmpty()) {
-                                        IconButton(onClick = { recipientAddress = "" }) {
-                                            Icon(Icons.Rounded.Clear, null, tint = TextGrey)
-                                        }
-                                    }
-                                    IconButton(onClick = { showScanner = true }) {
-                                        Icon(Icons.Rounded.QrCode, null, tint = BrandOrange)
-                                    }
-                                }
-                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BrandOrange,
                                 unfocusedBorderColor = BrandCard,
-                                focusedContainerColor = BrandCard,
-                                unfocusedContainerColor = BrandCard,
                                 focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite
+                                unfocusedTextColor = TextWhite,
+                                focusedContainerColor = BrandBlack,
+                                unfocusedContainerColor = BrandBlack
                             ),
-                            shape = RoundedCornerShape(16.dp),
-                            singleLine = false,
-                            maxLines = 3
+                            shape = RoundedCornerShape(16.dp)
                         )
 
-                        // Validation
-                        if (recipientAddress.isNotEmpty()) {
-                            val isValid = recipientAddress.startsWith("0x") && recipientAddress.length == 66
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Text("Select File", color = TextWhite, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAssetPicker = true },
+                            colors = CardDefaults.cardColors(containerColor = BrandCard),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
-                                    if (isValid) Icons.Rounded.CheckCircle else Icons.Rounded.Error,
+                                    if (selectedAsset != null) Icons.Rounded.CheckCircle else Icons.Rounded.Add,
                                     null,
-                                    tint = if (isValid) BrandGreen else BrandRed,
-                                    modifier = Modifier.size(16.dp)
+                                    tint = BrandOrange
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    if (isValid) "Valid Aptos address" else "Invalid address format (must be 66 chars)",
-                                    color = if (isValid) BrandGreen else BrandRed,
-                                    fontSize = 12.sp
+                                    text = selectedAsset?.title ?: "Choose from Vault",
+                                    color = if (selectedAsset != null) TextWhite else TextGrey
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Note
-                        Text(
-                            "Transfer Note (Optional)",
-                            color = TextWhite,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-
+                        Text("Message (Optional)", color = TextWhite, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = assetNote,
                             onValueChange = { assetNote = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("e.g., Family photos, Documents", color = TextGrey) },
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Notes, null, tint = TextGrey)
-                            },
+                            placeholder = { Text("Secure note...", color = TextGrey) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BrandOrange,
                                 unfocusedBorderColor = BrandCard,
-                                focusedContainerColor = BrandCard,
-                                unfocusedContainerColor = BrandCard,
                                 focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite
+                                unfocusedTextColor = TextWhite,
+                                focusedContainerColor = BrandBlack,
+                                unfocusedContainerColor = BrandBlack
                             ),
-                            shape = RoundedCornerShape(16.dp),
-                            maxLines = 3
+                            shape = RoundedCornerShape(16.dp)
                         )
 
-                        // Error Display
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Text("Access Expiration", color = TextWhite, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("1 Hour", "1 Day", "1 Week", "Never").forEach { duration ->
+                                FilterChip(
+                                    selected = expirationDuration == duration,
+                                    onClick = { expirationDuration = duration },
+                                    label = { Text(duration) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = BrandOrange,
+                                        selectedLabelColor = BrandBlack,
+                                        containerColor = BrandCard,
+                                        labelColor = TextWhite
+                                    )
+                                )
+                            }
+                        }
+
                         if (uiState is UiState.Error || errorMessage != null) {
                             Spacer(modifier = Modifier.height(16.dp))
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = BrandRed.copy(0.2f)),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Rounded.Error, null, tint = BrandRed)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        (uiState as? UiState.Error)?.message ?: errorMessage ?: "",
-                                        color = BrandRed,
-                                        fontSize = 14.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        // Info Card
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = BrandCard),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Rounded.Info, null, tint = BrandOrange, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    "This transfer will be recorded on Aptos blockchain",
-                                    color = TextGrey,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Send Button
-                        val isValidAddress = recipientAddress.startsWith("0x") && recipientAddress.length == 66
-
-                        Button(
-                            onClick = { viewModel.sendToAddress(recipientAddress, assetNote) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = BrandOrange,
-                                disabledContainerColor = BrandOrange.copy(0.3f)
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            enabled = isValidAddress
-                        ) {
-                            Icon(Icons.Rounded.Send, null, tint = BrandBlack)
-                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                "Authorize Transfer",
-                                color = BrandBlack,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
+                                (uiState as? UiState.Error)?.message ?: errorMessage ?: "",
+                                color = BrandRed,
+                                fontSize = 14.sp
                             )
                         }
-                    }
 
-                    is UiState.Loading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                        Spacer(modifier = Modifier.height(32.dp))
+
+                        Button(
+                            onClick = {
+                                viewModel.sendAsset(recipientAddress, selectedAsset, assetNote, expirationDuration)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+                            shape = RoundedCornerShape(16.dp),
+                            enabled = recipientAddress.length == 66 && selectedAsset != null
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(
-                                    color = BrandOrange,
-                                    modifier = Modifier.size(64.dp)
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    "Processing Transfer...",
-                                    color = TextWhite,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Confirming on Aptos blockchain",
-                                    color = TextGrey,
-                                    fontSize = 14.sp
-                                )
-                            }
+                            Text("Send Securely", color = BrandBlack, fontWeight = FontWeight.Bold)
                         }
                     }
-
+                    is UiState.Loading -> {
+                        Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = BrandOrange)
+                        }
+                    }
                     is UiState.Success -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Rounded.CheckCircle,
-                                    null,
-                                    tint = BrandGreen,
-                                    modifier = Modifier.size(80.dp)
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    "Transfer Successful!",
-                                    color = TextWhite,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    "Sent to:",
-                                    color = TextGrey,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    "${recipientAddress.take(10)}...${recipientAddress.takeLast(8)}",
-                                    color = BrandOrange,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text("Transaction Hash:", color = TextGrey, fontSize = 12.sp)
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = BrandCard),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.padding(top = 4.dp)
-                                ) {
-                                    Text(
-                                        (uiState as UiState.Success).txHash.take(20) + "...",
-                                        modifier = Modifier.padding(12.dp),
-                                        color = BrandOrange,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(32.dp))
-                                Button(
-                                    onClick = {
-                                        viewModel.resetStates()
-                                        navController.popBackStack()
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Done", color = BrandBlack, fontWeight = FontWeight.Bold)
-                                }
-                            }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = BrandGreen, modifier = Modifier.size(80.dp))
+                            Text("File Sent!", color = TextWhite, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { navController.popBackStack() }) { Text("Done") }
                         }
                     }
                 }

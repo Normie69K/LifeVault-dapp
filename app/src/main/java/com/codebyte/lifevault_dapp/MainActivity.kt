@@ -1,6 +1,7 @@
 // src/main/java/com/codebyte/lifevault_dapp/MainActivity.kt
 package com.codebyte.lifevault_dapp
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,6 +18,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Handle if app started via Share Intent
+        handleIncomingIntent(intent)
+
         setContent {
             LifeVaultDappTheme {
                 Surface(
@@ -25,6 +30,20 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Navigation(viewModel = viewModel)
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle if app was already open and received Share Intent
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { sharedText ->
+                viewModel.handleIncomingShare(sharedText)
             }
         }
     }

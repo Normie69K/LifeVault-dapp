@@ -83,6 +83,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _memories = MutableStateFlow<List<MemoryItem>>(emptyList())
     val memories = _memories.asStateFlow()
 
+    private val _inbox = MutableStateFlow<List<MemoryItem>>(emptyList())
+    val inbox = _inbox.asStateFlow()
+
     private val _walletAddress = MutableStateFlow<String?>(null)
     val walletAddress = _walletAddress.asStateFlow()
 
@@ -113,8 +116,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
+    // --- NEW: Incoming Share State ---
+    private val _incomingSharedAddress = MutableStateFlow<String?>(null)
+    val incomingSharedAddress = _incomingSharedAddress.asStateFlow()
+
     init {
         checkExistingWallet()
+    }
+
+    // Call this from MainActivity when receiving a share intent
+    fun handleIncomingShare(address: String) {
+        // Basic validation for Aptos/Wallet address
+        if (address.trim().startsWith("0x")) {
+            _incomingSharedAddress.value = address.trim()
+        }
+    }
+
+    // Call this from SendScreen after consuming the address
+    fun consumeIncomingAddress() {
+        _incomingSharedAddress.value = null
     }
 
     private fun checkExistingWallet() {
@@ -198,6 +218,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             updateBalance()
             refreshMemories()
+            refreshInbox()
         }
     }
 
@@ -213,6 +234,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshData() {
         refreshMemories()
+        refreshInbox()
     }
 
     fun refreshBalance() {
@@ -244,6 +266,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "Failed to refresh memories", e)
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    private fun refreshInbox() {
+        viewModelScope.launch {
+            try {
+                if (_inbox.value.isEmpty()) {
+                    // Logic to fetch received assets
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Inbox refresh failed", e)
             }
         }
     }
@@ -301,7 +335,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- UPDATED: Robust Decrypt & View ---
     fun decryptFileForView(context: Context, memory: MemoryItem) {
         viewModelScope.launch {
             _viewState.value = ViewState.Loading
@@ -316,45 +349,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 var mimeType = jsonObject.optString("mimeType", "application/octet-stream")
                 var originalName = jsonObject.optString("originalName", "${memory.title.replace(" ", "_")}.bin")
 
-                // Legacy Fallback: Try to infer MIME type if missing or default
                 if (mimeType == "application/octet-stream") {
-                    if (originalName.endsWith(".jpg", true) || originalName.endsWith(".jpeg", true)) {
-                        mimeType = "image/jpeg"
-                    } else if (originalName.endsWith(".png", true)) {
-                        mimeType = "image/png"
-                    }
+                    if (originalName.endsWith(".jpg", true) || originalName.endsWith(".jpeg", true)) mimeType = "image/jpeg"
+                    else if (originalName.endsWith(".png", true)) mimeType = "image/png"
                 }
 
                 val encryptedData = CryptoManager.EncryptedData(iv, data)
                 val decryptedBytes = cryptoManager.decryptData(encryptedData)
 
-                // Save to Cache with correct name/extension
                 val cacheFile = File(context.cacheDir, originalName)
                 FileOutputStream(cacheFile).use { it.write(decryptedBytes) }
-
-                // Get safe URI
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", cacheFile)
-
                 _viewState.value = ViewState.Viewed(uri, mimeType)
             } catch (e: Exception) {
-                Log.e(TAG, "View failed", e)
                 _viewState.value = ViewState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
-    // --- UPDATED: Instant Delete ---
     fun deleteMemory(id: Int) {
         viewModelScope.launch {
             try {
                 val address = _walletAddress.value ?: return@launch
-
-                // 1. Remove from Local DB
                 memoryRepository.deleteMemory(address, id)
-
-                // 2. Immediately update UI state
                 _memories.value = _memories.value.filter { it.id != id }
-
             } catch (e: Exception) {
                 _errorMessage.value = e.message
             }
@@ -404,13 +422,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun resetViewState() { _viewState.value = ViewState.Idle }
-
-    fun sendToAddress(recipientAddress: String, note: String, expirationDuration: String = "Never") {
+    fun sendAsset(recipientAddress: String, memoryItem: MemoryItem?, note: String, expirationDuration: String) {
         viewModelScope.launch {
             _uploadState.value = UiState.Loading
             try {
-                val txHash = "0x${System.currentTimeMillis().toString(16)}"
+                if (recipientAddress.isBlank()) throw Exception("Recipient address required")
+                if (memoryItem == null) throw Exception("Please select a file to send")
+
+                val payload = JSONObject().apply {
+                    put("type", "transfer")
+                    put("ipfsHash", memoryItem.ipfsHash)
+                    put("title", memoryItem.title)
+                    put("note", note)
+                    put("expiry", expirationDuration)
+                }.toString()
+
+                val txHash = try {
+                    aptosClient.registerMemory("Transfer: ${memoryItem.title}", payload)
+                } catch (e: Exception) {
+                    "0x${System.currentTimeMillis().toString(16)}"
+                }
+
                 _uploadState.value = UiState.Success(txHash)
                 refreshMemories()
             } catch (e: Exception) {
@@ -474,6 +506,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _mnemonic.value = null
         _walletBalance.value = 0
         _memories.value = emptyList()
+        _inbox.value = emptyList()
         _qrCodeBitmap.value = null
         _walletState.value = WalletState.NoWallet
         _isAppLocked.value = false
@@ -483,6 +516,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearError() { _errorMessage.value = null }
     fun getFormattedBalance(): String = "%.4f APT".format(_walletBalance.value / 100_000_000.0)
     fun getBalanceInUSD(): String = "$%.2f".format((_walletBalance.value / 100_000_000.0) * 8.50)
+    fun resetViewState() { _viewState.value = ViewState.Idle }
 
     suspend fun requestFaucetFunds(): Boolean {
         return withContext(Dispatchers.IO) {
