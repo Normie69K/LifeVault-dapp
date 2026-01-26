@@ -20,8 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.codebyte.lifevault_dapp.MainViewModel
 import com.codebyte.lifevault_dapp.ui.components.MemoryCard
-import com.codebyte.lifevault_dapp.ui.components.WalletBalanceCard
-import com.codebyte.lifevault_dapp.ui.components.FaucetButton
 import com.codebyte.lifevault_dapp.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,251 +35,161 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
     var editedHandle by remember { mutableStateOf(userHandle) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // Update local state when userName/userHandle changes
     LaunchedEffect(userName, userHandle) {
         editedName = userName
         editedHandle = userHandle
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(BrandBlack)
-            .padding(16.dp)
+            .background(BrandBlack),
+        contentPadding = PaddingValues(bottom = 100.dp)
     ) {
-        // Header with Settings
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Profile",
-                color = TextWhite,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
-            IconButton(onClick = { navController.navigate("settings") }) {
-                Icon(Icons.Rounded.Settings, null, tint = TextGrey)
+        // 1. Header
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Profile", color = TextWhite, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { navController.navigate("settings") }) {
+                    Icon(Icons.Rounded.Settings, null, tint = TextGrey)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Profile Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = BrandCard),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Column(
+        // 2. Profile Card
+        item {
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = BrandCard),
+                shape = RoundedCornerShape(20.dp)
             ) {
-                // Avatar
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                        .background(BrandOrange.copy(0.2f)),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        Icons.Rounded.Person,
-                        null,
-                        modifier = Modifier.size(60.dp),
-                        tint = BrandOrange
-                    )
-                }
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(BrandOrange.copy(0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Person, null, modifier = Modifier.size(60.dp), tint = BrandOrange)
+                    }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (isEditing) {
-                    // Edit Mode
-                    OutlinedTextField(
-                        value = editedName,
-                        onValueChange = { editedName = it },
-                        label = { Text("Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BrandOrange,
-                            unfocusedBorderColor = TextGrey,
-                            focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite,
-                            focusedLabelColor = BrandOrange,
-                            unfocusedLabelColor = TextGrey
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = editedHandle,
-                        onValueChange = { editedHandle = it },
-                        label = { Text("Handle") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BrandOrange,
-                            unfocusedBorderColor = TextGrey,
-                            focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite,
-                            focusedLabelColor = BrandOrange,
-                            unfocusedLabelColor = TextGrey
-                        )
-                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                isEditing = false
-                                editedName = userName
-                                editedHandle = userHandle
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = TextGrey
+
+                    if (isEditing) {
+                        OutlinedTextField(
+                            value = editedName,
+                            onValueChange = { editedName = it },
+                            label = { Text("Name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandOrange,
+                                unfocusedBorderColor = TextGrey,
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite
                             )
-                        ) {
-                            Text("Cancel")
-                        }
-                        Button(
-                            onClick = {
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = editedHandle,
+                            onValueChange = { editedHandle = it },
+                            label = { Text("Handle") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandOrange,
+                                unfocusedBorderColor = TextGrey,
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = { isEditing = false }) { Text("Cancel", color = TextGrey) }
+                            Button(onClick = {
                                 viewModel.updateProfile(editedName, editedHandle)
                                 isEditing = false
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = BrandOrange,
-                                contentColor = BrandBlack
-                            )
-                        ) {
-                            Text("Save")
+                            }, colors = ButtonDefaults.buttonColors(containerColor = BrandOrange)) { Text("Save", color = BrandBlack) }
                         }
-                    }
-                } else {
-                    // Display Mode
-                    Text(
-                        userName,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextWhite
-                    )
-                    Text(
-                        userHandle,
-                        fontSize = 16.sp,
-                        color = TextGrey
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Wallet Address
-                    Surface(
-                        color = BrandBlack,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Rounded.AccountBalanceWallet,
-                                null,
-                                tint = BrandOrange,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = walletAddress?.let {
-                                    "${it.take(8)}...${it.takeLast(6)}"
-                                } ?: "No Wallet",
-                                color = BrandOrange,
-                                fontSize = 12.sp
-                            )
+                    } else {
+                        Text(userName, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextWhite)
+                        Text(userHandle, fontSize = 16.sp, color = TextGrey)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Surface(color = BrandBlack, shape = RoundedCornerShape(12.dp)) {
+                            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.AccountBalanceWallet, null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = walletAddress?.let { "${it.take(8)}...${it.takeLast(6)}" } ?: "No Wallet",
+                                    color = BrandOrange,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { isEditing = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandOrange,
-                            contentColor = BrandBlack
-                        )
-                    ) {
-                        Icon(Icons.Rounded.Edit, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Edit Profile")
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { isEditing = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandOrange)
+                        ) {
+                            Text("Edit Profile", color = BrandBlack)
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Wallet Balance Section
-        WalletBalanceCard(viewModel)
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        FaucetButton(viewModel)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Stats Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatCard("Assets", memories.size.toString())
-            StatCard("Secured", memories.count { it.isSecured }.toString())
-            StatCard("Shared", "0")
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Recent Activity
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Recent Activity",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextWhite
-            )
-            if (memories.isNotEmpty()) {
-                TextButton(onClick = { navController.navigate("memories") }) {
-                    Text("View All", color = BrandOrange)
-                }
+        // 3. Stats Row
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatCard("Assets", memories.size.toString())
+                StatCard("Secured", memories.count { it.isSecured }.toString())
+                StatCard("Shared", "0")
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (memories.isEmpty()) {
-            Box(
+        // 4. Recent Activity Header
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp),
-                contentAlignment = Alignment.Center
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Rounded.Inventory2,
-                        null,
-                        tint = TextGrey,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("No memories yet", color = TextGrey)
+                Text("Recent Activity", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextWhite)
+                if (memories.isNotEmpty()) {
+                    TextButton(onClick = { navController.navigate("memories") }) {
+                        Text("View All", color = BrandOrange)
+                    }
+                }
+            }
+        }
+
+        // 5. Activity List
+        if (memories.isEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    Text("No recent activity", color = TextGrey)
                 }
             }
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(memories.take(3)) { memory ->
+            items(memories.take(3)) { memory ->
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                     MemoryCard(memory) {
                         navController.navigate("memory_detail/${memory.id}")
                     }
@@ -289,60 +197,42 @@ fun ProfileScreen(viewModel: MainViewModel, navController: NavController) {
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Logout Button
-        OutlinedButton(
-            onClick = { showLogoutDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = BrandRed
-            ),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
-                brush = androidx.compose.ui.graphics.SolidColor(BrandRed)
-            )
-        ) {
-            Icon(Icons.Rounded.Logout, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Logout")
+        // 6. Logout
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            OutlinedButton(
+                onClick = { showLogoutDialog = true },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandRed),
+                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BrandRed))
+            ) {
+                Text("Logout")
+            }
         }
     }
 
-    // Logout Confirmation Dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             title = { Text("Logout", color = TextWhite) },
-            text = {
-                Text(
-                    "Are you sure you want to logout? Make sure you have backed up your recovery phrase.",
-                    color = TextGrey
-                )
-            },
+            text = { Text("Are you sure you want to logout?", color = TextGrey) },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.logoutUser()
                         showLogoutDialog = false
-                        navController.navigate("onboarding") {
-                            popUpTo(0) { inclusive = true }
-                        }
+                        navController.navigate("onboarding") { popUpTo(0) { inclusive = true } }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandRed)
-                ) {
-                    Text("Logout")
-                }
+                ) { Text("Logout") }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancel", color = TextGrey)
-                }
-            },
+            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel", color = TextGrey) } },
             containerColor = BrandCard
         )
     }
 }
 
+// --- ADDED MISSING COMPOSABLE ---
 @Composable
 fun StatCard(label: String, value: String) {
     Card(

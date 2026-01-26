@@ -53,7 +53,7 @@ fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
         ) {
             Column {
                 Text(
-                    "My Vault",
+                    "Life Vault",
                     color = TextWhite,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
@@ -84,11 +84,11 @@ fun TimelineScreen(viewModel: MainViewModel, navController: NavController) {
         }
 
         // Wallet Balance Card
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        /*Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             WalletBalanceCard(viewModel)
             Spacer(modifier = Modifier.height(12.dp))
             FaucetButton(viewModel)
-        }
+        }*/
 
         Spacer(modifier = Modifier.height(24.dp))
 

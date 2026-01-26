@@ -336,7 +336,7 @@ fun OnboardingScreen(viewModel: MainViewModel, onComplete: () -> Unit) {
                         shape = RoundedCornerShape(16.dp),
                         enabled = mnemonicConfirmed
                     ) {
-                        Text("Enter My Vault", color = BrandBlack, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Enter Life Vault", color = BrandBlack, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
                 }
             }

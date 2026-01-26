@@ -1,19 +1,30 @@
+// src/main/java/com/codebyte/lifevault_dapp/MainActivity.kt
 package com.codebyte.lifevault_dapp
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import com.codebyte.lifevault_dapp.ui.navigation.Navigation
+import com.codebyte.lifevault_dapp.ui.theme.BrandBlack
 import com.codebyte.lifevault_dapp.ui.theme.LifeVaultDappTheme
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            LifeVaultDappTheme() {
-                val viewModel: MainViewModel = viewModel()
-                Navigation(viewModel)
+            LifeVaultDappTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = BrandBlack
+                ) {
+                    Navigation(viewModel = viewModel)
+                }
             }
         }
     }

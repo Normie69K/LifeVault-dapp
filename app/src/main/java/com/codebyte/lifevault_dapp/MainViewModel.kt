@@ -4,15 +4,24 @@ package com.codebyte.lifevault_dapp
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
+import android.webkit.MimeTypeMap
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.codebyte.lifevault_dapp.core.AptosClient
 import com.codebyte.lifevault_dapp.core.CryptoManager
+import com.codebyte.lifevault_dapp.core.IPFSClient
 import com.codebyte.lifevault_dapp.data.MemoryItem
 import com.codebyte.lifevault_dapp.data.MemoryRepository
 import com.google.zxing.BarcodeFormat
@@ -23,13 +32,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 
 sealed class UiState {
     object Idle : UiState()
     object Loading : UiState()
     data class Success(val txHash: String) : UiState()
     data class Error(val message: String) : UiState()
+}
+
+sealed class ViewState {
+    object Idle : ViewState()
+    object Loading : ViewState()
+    data class Viewed(val uri: Uri, val mimeType: String) : ViewState()
+    data class Error(val message: String) : ViewState()
 }
 
 sealed class WalletState {
@@ -48,11 +66,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val cryptoManager = CryptoManager(application)
     private val aptosClient = AptosClient(cryptoManager)
+    private val ipfsClient = IPFSClient()
     private val memoryRepository = MemoryRepository(application)
 
     // UI States
     private val _uploadState = MutableStateFlow<UiState>(UiState.Idle)
     val uploadState = _uploadState.asStateFlow()
+
+    private val _viewState = MutableStateFlow<ViewState>(ViewState.Idle)
+    val viewState = _viewState.asStateFlow()
 
     private val _walletState = MutableStateFlow<WalletState>(WalletState.NoWallet)
     val walletState = _walletState.asStateFlow()
@@ -112,23 +134,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _walletState.value = WalletState.Creating
             _isLoading.value = true
-
             try {
                 val walletData = withContext(Dispatchers.Default) {
                     cryptoManager.createNewWallet()
                 }
-
                 _walletAddress.value = walletData.address
                 _mnemonic.value = walletData.mnemonic
                 _walletState.value = WalletState.Ready(walletData.address)
-
                 generateQrCode(walletData.address)
                 fundWalletFromFaucet()
-
-                Log.d(TAG, "Wallet created: ${walletData.address}")
-
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to create wallet", e)
                 _walletState.value = WalletState.Error(e.message ?: "Failed to create wallet")
                 _errorMessage.value = e.message
             } finally {
@@ -141,23 +156,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _walletState.value = WalletState.Importing
             _isLoading.value = true
-
             try {
                 val address = withContext(Dispatchers.Default) {
                     cryptoManager.importWalletFromMnemonic(mnemonic)
                 }
-
                 _walletAddress.value = address
                 _mnemonic.value = mnemonic
                 _walletState.value = WalletState.Ready(address)
-
                 generateQrCode(address)
                 loadWalletData()
-
-                Log.d(TAG, "Wallet imported: $address")
-
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to import wallet", e)
                 _walletState.value = WalletState.Error(e.message ?: "Invalid recovery phrase")
                 _errorMessage.value = e.message
             } finally {
@@ -169,13 +177,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun fundWalletFromFaucet() {
         viewModelScope.launch {
             val address = _walletAddress.value ?: return@launch
-
             try {
                 val success = aptosClient.fundFromFaucet(address)
                 if (success) {
                     delay(3000)
                     updateBalance()
-                    Log.d(TAG, "Wallet funded from faucet")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fund from faucet", e)
@@ -186,13 +192,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadWalletData() {
         viewModelScope.launch {
             val address = _walletAddress.value ?: return@launch
-
-            // Load from local storage first
             val localMemories = memoryRepository.loadMemories(address)
             if (localMemories.isNotEmpty()) {
                 _memories.value = localMemories
             }
-
             updateBalance()
             refreshMemories()
         }
@@ -203,7 +206,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val balance = aptosClient.getBalance(address)
             _walletBalance.value = balance
-            Log.d(TAG, "Balance updated: $balance")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get balance", e)
         }
@@ -223,28 +225,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             val address = _walletAddress.value ?: return@launch
-
             try {
-                // Load from local storage
                 val localMemories = memoryRepository.loadMemories(address)
                 _memories.value = localMemories
 
-                // Try blockchain sync (in background)
                 try {
                     val blockchainMemories = aptosClient.fetchUserMemories(address)
                     if (blockchainMemories.isNotEmpty()) {
-                        // Merge with local
-                        val merged = (localMemories + blockchainMemories)
-                            .distinctBy { it.ipfsHash }
+                        val merged = (localMemories + blockchainMemories).distinctBy { it.ipfsHash }
                         _memories.value = merged
                         memoryRepository.saveMemories(address, merged)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Blockchain sync failed", e)
                 }
-
                 updateBalance()
-
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to refresh memories", e)
             } finally {
@@ -256,92 +251,169 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun secureSelectedFile(uri: Uri, context: Context, title: String, category: String = "General") {
         viewModelScope.launch {
             _uploadState.value = UiState.Loading
-
             try {
                 val address = _walletAddress.value ?: throw Exception("No wallet")
+                val contentResolver = context.contentResolver
+                val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+                val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "bin"
+                val originalFileName = "$title.$extension"
 
                 val bytes = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.readBytes()
-                        ?: throw Exception("Could not read file")
+                    contentResolver.openInputStream(uri)?.readBytes() ?: throw Exception("Could not read file")
                 }
 
-                Log.d(TAG, "File read: ${bytes.size} bytes")
-
                 val encryptedData = cryptoManager.encryptData(bytes)
-                Log.d(TAG, "Data encrypted")
+                val encryptedJsonString = JSONObject().apply {
+                    put("iv", encryptedData.iv)
+                    put("data", encryptedData.data)
+                    put("mimeType", mimeType)
+                    put("originalName", originalFileName)
+                }.toString()
 
-                // Simulate IPFS upload
-                val ipfsHash = "Qm${System.currentTimeMillis()}"
+                val uploadResult = ipfsClient.uploadFileToPinata(
+                    fileBytes = encryptedJsonString.toByteArray(Charsets.UTF_8),
+                    fileName = "${title.replace(" ", "_")}_encrypted.json",
+                    mimeType = "application/json"
+                )
 
-                // Demo blockchain transaction
+                val ipfsHash = uploadResult.hash
                 val txHash = try {
                     aptosClient.registerMemory(title, ipfsHash)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Blockchain failed, using demo", e)
                     "0x${System.currentTimeMillis().toString(16)}"
                 }
 
-                Log.d(TAG, "Transaction: $txHash")
-
-                // Create memory item
                 val newMemory = MemoryItem(
                     id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt(),
                     title = title,
-                    date = java.text.SimpleDateFormat(
-                        "MMM dd, yyyy HH:mm",
-                        java.util.Locale.getDefault()
-                    ).format(java.util.Date()),
+                    date = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date()),
                     ipfsHash = ipfsHash,
                     category = category,
                     isSecured = true,
                     txHash = txHash
                 )
-
-                // Save to local storage
                 memoryRepository.addMemory(address, newMemory)
-
-                // Update UI
                 _memories.value = listOf(newMemory) + _memories.value
-
                 _uploadState.value = UiState.Success(txHash)
-
             } catch (e: Exception) {
-                Log.e(TAG, "Upload failed", e)
                 _uploadState.value = UiState.Error(e.message ?: "Upload failed")
             }
         }
     }
 
-    fun sendToAddress(recipientAddress: String, note: String) {
+    // --- UPDATED: Robust Decrypt & View ---
+    fun decryptFileForView(context: Context, memory: MemoryItem) {
         viewModelScope.launch {
-            _uploadState.value = UiState.Loading
-
+            _viewState.value = ViewState.Loading
             try {
-                if (recipientAddress.isBlank()) {
-                    throw Exception("Recipient address is required")
+                if (memory.ipfsHash.length < 10) throw Exception("Invalid/Corrupt Data")
+                val downloadedBytes = ipfsClient.downloadFromIPFS(memory.ipfsHash)
+                val jsonString = String(downloadedBytes, Charsets.UTF_8)
+                val jsonObject = JSONObject(jsonString)
+
+                val iv = jsonObject.getString("iv")
+                val data = jsonObject.getString("data")
+                var mimeType = jsonObject.optString("mimeType", "application/octet-stream")
+                var originalName = jsonObject.optString("originalName", "${memory.title.replace(" ", "_")}.bin")
+
+                // Legacy Fallback: Try to infer MIME type if missing or default
+                if (mimeType == "application/octet-stream") {
+                    if (originalName.endsWith(".jpg", true) || originalName.endsWith(".jpeg", true)) {
+                        mimeType = "image/jpeg"
+                    } else if (originalName.endsWith(".png", true)) {
+                        mimeType = "image/png"
+                    }
                 }
 
-                if (!recipientAddress.startsWith("0x") || recipientAddress.length != 66) {
-                    throw Exception("Invalid Aptos address format")
-                }
+                val encryptedData = CryptoManager.EncryptedData(iv, data)
+                val decryptedBytes = cryptoManager.decryptData(encryptedData)
 
-                val transferTitle = "Transfer to ${recipientAddress.take(10)}..."
-                val transferNote = note.ifBlank { "Asset Transfer" }
-                val transferData = "transfer:$recipientAddress:$transferNote"
+                // Save to Cache with correct name/extension
+                val cacheFile = File(context.cacheDir, originalName)
+                FileOutputStream(cacheFile).use { it.write(decryptedBytes) }
 
-                val txHash = try {
-                    aptosClient.registerMemory(transferTitle, transferData)
-                } catch (e: Exception) {
-                    "0x${System.currentTimeMillis().toString(16)}"
-                }
+                // Get safe URI
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", cacheFile)
 
-                Log.d(TAG, "Transfer recorded: $txHash")
+                _viewState.value = ViewState.Viewed(uri, mimeType)
+            } catch (e: Exception) {
+                Log.e(TAG, "View failed", e)
+                _viewState.value = ViewState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
 
-                _uploadState.value = UiState.Success(txHash)
-                refreshMemories()
+    // --- UPDATED: Instant Delete ---
+    fun deleteMemory(id: Int) {
+        viewModelScope.launch {
+            try {
+                val address = _walletAddress.value ?: return@launch
+
+                // 1. Remove from Local DB
+                memoryRepository.deleteMemory(address, id)
+
+                // 2. Immediately update UI state
+                _memories.value = _memories.value.filter { it.id != id }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Transfer failed", e)
+                _errorMessage.value = e.message
+            }
+        }
+    }
+
+    fun downloadAndDecryptMemory(context: Context, memory: MemoryItem) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                if (memory.ipfsHash.length < 10) throw Exception("Invalid IPFS Hash")
+                val downloadedBytes = ipfsClient.downloadFromIPFS(memory.ipfsHash)
+                val jsonString = String(downloadedBytes, Charsets.UTF_8)
+                val jsonObject = JSONObject(jsonString)
+
+                val iv = jsonObject.getString("iv")
+                val data = jsonObject.getString("data")
+                val mimeType = jsonObject.optString("mimeType", "application/octet-stream")
+                val originalName = jsonObject.optString("originalName", "${memory.title.replace(" ", "_")}.bin")
+
+                val encryptedData = CryptoManager.EncryptedData(iv, data)
+                val decryptedBytes = cryptoManager.decryptData(encryptedData)
+
+                saveFileToDownloads(context, decryptedBytes, originalName, mimeType)
+                Toast.makeText(context, "Saved to Downloads", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private fun saveFileToDownloads(context: Context, data: ByteArray, fileName: String, mimeType: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)?.let { uri ->
+                context.contentResolver.openOutputStream(uri)?.use { it.write(data) }
+            }
+        } else {
+            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+            FileOutputStream(file).use { it.write(data) }
+        }
+    }
+
+    fun resetViewState() { _viewState.value = ViewState.Idle }
+
+    fun sendToAddress(recipientAddress: String, note: String, expirationDuration: String = "Never") {
+        viewModelScope.launch {
+            _uploadState.value = UiState.Loading
+            try {
+                val txHash = "0x${System.currentTimeMillis().toString(16)}"
+                _uploadState.value = UiState.Success(txHash)
+                refreshMemories()
+            } catch (e: Exception) {
                 _uploadState.value = UiState.Error(e.message ?: "Transfer failed")
             }
         }
@@ -351,12 +423,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.Default) {
             try {
                 val size = 512
-                val bitMatrix = MultiFormatWriter().encode(
-                    address,
-                    BarcodeFormat.QR_CODE,
-                    size,
-                    size
-                )
+                val bitMatrix = MultiFormatWriter().encode(address, BarcodeFormat.QR_CODE, size, size)
                 val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
                 for (x in 0 until size) {
                     for (y in 0 until size) {
@@ -364,75 +431,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 _qrCodeBitmap.value = bitmap
-            } catch (e: Exception) {
-                Log.e(TAG, "QR generation failed", e)
-            }
+            } catch (e: Exception) { }
         }
     }
 
     fun shareViaAddress() {
-        copyAddressToClipboard()
-    }
-
-    private fun copyAddressToClipboard() {
         val context = getApplication<Application>()
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Wallet Address", _walletAddress.value ?: "")
         clipboard.setPrimaryClip(clip)
-        _shareState.value = "Address copied to clipboard!"
-
-        viewModelScope.launch {
-            delay(3000)
-            _shareState.value = null
-        }
+        _shareState.value = "Address copied!"
+        viewModelScope.launch { delay(2000); _shareState.value = null }
     }
 
     fun handleScannedQRCode(code: String): Boolean {
-        return if (code.startsWith("0x") && code.length == 66) {
-            true
-        } else {
-            _errorMessage.value = "Invalid QR code. Expected an Aptos address."
+        return if (code.startsWith("0x") && code.length == 66) true else {
+            _errorMessage.value = "Invalid Aptos Address"
             false
-        }
-    }
-
-    fun deleteMemory(id: Int) {
-        viewModelScope.launch {
-            try {
-                val address = _walletAddress.value ?: return@launch
-
-                // Delete from local storage
-                memoryRepository.deleteMemory(address, id)
-
-                // Update UI
-                _memories.value = _memories.value.filter { it.id != id }
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Delete failed", e)
-                _errorMessage.value = e.message
-            }
         }
     }
 
     fun getMemoryById(id: Int): MemoryItem? = _memories.value.find { it.id == id }
 
     fun updateProfile(name: String, handle: String) {
-        _userName.value = name.ifBlank { "LifeVault User" }
-        _userHandle.value = if (handle.startsWith("@")) handle else "@${handle.ifBlank { "user" }}"
+        _userName.value = name
+        _userHandle.value = handle
     }
 
     fun unlockApp(pin: String): Boolean {
-        return if (pin == "1234") {
+        if (pin == "1234") {
             _isAppLocked.value = false
-            true
-        } else {
-            false
+            return true
         }
+        return false
     }
 
-    fun toggleAppLock() {
-        _isAppLocked.value = !_isAppLocked.value
-    }
+    fun toggleAppLock() { _isAppLocked.value = !_isAppLocked.value }
 
     fun logoutUser() {
         cryptoManager.logout()
@@ -445,63 +479,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isAppLocked.value = false
     }
 
-    fun resetStates() {
-        _uploadState.value = UiState.Idle
-        _shareState.value = null
-        _errorMessage.value = null
-    }
+    fun resetStates() { _uploadState.value = UiState.Idle; _shareState.value = null; _errorMessage.value = null }
+    fun clearError() { _errorMessage.value = null }
+    fun getFormattedBalance(): String = "%.4f APT".format(_walletBalance.value / 100_000_000.0)
+    fun getBalanceInUSD(): String = "$%.2f".format((_walletBalance.value / 100_000_000.0) * 8.50)
 
-    fun clearError() {
-        _errorMessage.value = null
-    }
-
-    fun getFormattedBalance(): String {
-        val balance = _walletBalance.value
-        val apt = balance / 100_000_000.0
-        return String.format("%.4f APT", apt)
-    }
-
-    fun getBalanceInUSD(): String {
-        val balance = _walletBalance.value
-        val apt = balance / 100_000_000.0
-        val usdRate = 8.50 // Mock rate
-        val usd = apt * usdRate
-        return String.format("$%.2f", usd)
-    }
-
-    // Faucet request function
     suspend fun requestFaucetFunds(): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 val address = _walletAddress.value ?: return@withContext false
-                val success = aptosClient.fundFromFaucet(address, 100_000_000) // 1 APT
-
-                if (success) {
-                    Log.d(TAG, "Faucet funded successfully")
-                    delay(3000) // Wait for blockchain
-                    updateBalance()
-                    delay(2000)
-                    updateBalance() // Double check
-                }
+                val success = aptosClient.fundFromFaucet(address, 100_000_000)
+                if (success) { delay(3000); updateBalance() }
                 success
-            } catch (e: Exception) {
-                Log.e(TAG, "Faucet failed", e)
-                false
-            }
-        }
-    }
-
-    fun shareMemory(memoryId: Int, recipientAddress: String) {
-        viewModelScope.launch {
-            try {
-                // Future: Implement sharing logic
-                _shareState.value = "Memory shared successfully!"
-                delay(3000)
-                _shareState.value = null
-            } catch (e: Exception) {
-                Log.e(TAG, "Share failed", e)
-                _errorMessage.value = e.message
-            }
+            } catch (e: Exception) { false }
         }
     }
 }
